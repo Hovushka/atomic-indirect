@@ -1,0 +1,79 @@
+#version 430 core
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
+
+struct Vertex {
+	vec4 pos;
+	vec4 color;
+};
+
+struct Instance {
+	vec4 ctrRad;
+};
+
+struct DrawArraysIndirectCommand {
+	uint  count;
+	uint  instanceCount;
+	uint  first;
+	uint  baseInstance;
+};
+
+layout(std430, binding = 0) readonly buffer VertexBuffer {
+	uint counter;
+    Vertex data[];
+} vertBuf;
+
+layout(std430, binding = 1) writeonly buffer DynVertexBuffer {
+    Vertex data[];
+} dynBuf;
+
+layout(std430, binding = 2) writeonly buffer DrawBuffer {
+	DrawArraysIndirectCommand arrayCall;
+} drawBuf;
+
+layout(std430, binding = 3) readonly buffer InstanceBuffer {
+    Instance data[];
+} instBuf;
+
+layout(binding = 0) uniform UniBuffer {
+    float deltaTime;
+} uniBuf;
+
+#define M_PI 3.1415926535897932384626433832795
+#define R 0.5
+
+bool checkDist(vec2 center, float radius) {
+	return distance(vec2(0.0), center) < (abs(sin(uniBuf.deltaTime)) + radius);
+}
+
+vec2 rotate(float angle, vec2 origin, vec2 point) {
+	mat2 rotMat = mat2(cos(angle), sin(angle), -sin(angle), cos(angle));
+	return rotMat * (point - origin) + origin;
+}
+
+void main() {
+	uvec3 threadSize = gl_WorkGroupSize * gl_NumWorkGroups;
+	uint threadIdx = gl_GlobalInvocationID.z * threadSize.x * threadSize.y +
+		gl_GlobalInvocationID.y * threadSize.x + gl_GlobalInvocationID.x;
+
+	Vertex triangle[3];
+	triangle[0] = vertBuf.data[threadIdx * 3 + 0];
+	triangle[1] = vertBuf.data[threadIdx * 3 + 1];
+	triangle[2] = vertBuf.data[threadIdx * 3 + 2];
+
+	Instance triData = instBuf.data[threadIdx];
+
+	bool withinRange = 
+		checkDist(triData.ctrRad.xy, triData.ctrRad.z) || 
+		checkDist(triData.ctrRad.xy, triData.ctrRad.z) || 
+		checkDist(triData.ctrRad.xy, triData.ctrRad.z);
+	if (!withinRange) return;
+
+	triangle[0].pos = vec4(rotate(uniBuf.deltaTime, triData.ctrRad.xy, triangle[0].pos.xy), triangle[0].pos.zw);
+	triangle[1].pos = vec4(rotate(uniBuf.deltaTime, triData.ctrRad.xy, triangle[1].pos.xy), triangle[1].pos.zw);
+	triangle[2].pos = vec4(rotate(uniBuf.deltaTime, triData.ctrRad.xy, triangle[2].pos.xy), triangle[2].pos.zw);
+
+	uint drawIdx = atomicAdd(drawBuf.arrayCall.count, 3);
+	dynBuf.data[drawIdx + 0] = triangle[0];
+	dynBuf.data[drawIdx + 1] = triangle[1];
+	dynBuf.data[drawIdx + 2] = triangle[2];
+}

@@ -1,0 +1,12 @@
+[submodule "SDL"]
+	path = ext/SDL
+	url = https://github.com/libsdl-org/SDL
+[submodule "gl3w"]
+	path = ext/gl3w
+	url = https://github.com/skaslev/gl3w
+[submodule "glm"]
+	path = ext/glm
+	url = https://github.com/g-truc/glm
+[submodule "stb"]
+	path = ext/stb
+	url = https://github.com/nothings/stb
